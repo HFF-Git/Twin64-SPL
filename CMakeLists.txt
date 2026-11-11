@@ -47,7 +47,8 @@ add_executable( ${PROJECT_NAME}
     Parser.cpp 
     CodeGen.cpp 
     ListFileGen.cpp 
-    ObjFileGen.cpp 
+    ObjFileGen.cpp
+    Tables.h 
 )
 
 target_link_libraries( ${PROJECT_NAME} PRIVATE 
