@@ -33,3 +33,925 @@ namespace {
 
 
 
+
+// ??? a basic scanner
+// ??? should we have a concept of include files ? 
+// ??? in this case, the srcFile needs to be described too... 
+// ??? tokens need to have a reference to the file they are from ...
+
+
+
+#if 0
+
+// to be reworked ....
+
+
+//----------------------------------------------------------------------------------------
+// Local namespace. These routines are not visible outside this source file.
+//
+//----------------------------------------------------------------------------------------
+namespace {
+
+//----------------------------------------------------------------------------------------
+// Locals.
+//
+//----------------------------------------------------------------------------------------
+const int   TOK_NAME_SIZE   = 32;
+const char  EOS_CHAR        = 0;
+char        strTokenBuf[ MAX_TOK_STR_SIZE ] = { 0 };
+
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
+void upshiftStr( char *str ) {
+    
+    size_t len = strlen( str );
+    
+    if ( len > 0 ) {
+        
+        for ( size_t i = 0; i < len; i++ ) {
+
+            str[i] = static_cast<char>(
+                            toupper(static_cast<unsigned char>(str[i])));
+        }
+    }
+}
+
+//----------------------------------------------------------------------------------------
+// The lookup function. We just do a linear search for now.
+//
+//----------------------------------------------------------------------------------------
+int lookupToken( char *inputStr, const SimToken *tokTab ) {
+
+    char tempStr[ TOK_NAME_SIZE + 1 ] = { 0 };
+    strncpy( tempStr, inputStr, TOK_NAME_SIZE );
+    upshiftStr( tempStr );
+
+    if (( strlen( tempStr ) == 0 ) || 
+        ( strlen ( tempStr ) > TOK_NAME_SIZE )) return( -1 );
+    
+    for ( int i = 0; i < MAX_CMD_TOKEN_TAB; i++  ) {
+        
+        if ( strcmp( tempStr, tokTab[ i ].name ) == 0 ) return( i );
+    }
+    
+    return( -1 );
+}
+
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
+void addChar( char *buf, size_t size, char ch ) {
+    
+    size_t len = strlen( buf );
+    
+    if ( len + 1 < size ) {
+        
+        buf[ len ]     = ch;
+        buf[ len + 1 ] = 0;
+    }
+}
+
+//----------------------------------------------------------------------------------------
+//
+//
+//
+//----------------------------------------------------------------------------------------
+void appendChar(char *&out, char *end, char c ) {
+   
+    if ( out >= end )  throw( ERR_STRING_TOO_LONG );
+    *out++ = c;
+}
+
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
+void appendUTF8(char *&out, char *end, uint32_t cp) {
+
+    if ( cp <= 0x7F ) {
+
+        appendChar( out, end, static_cast<char>(cp));
+    }
+    else if ( cp <= 0x7FF ) {
+
+        appendChar( out, end, static_cast<char>(0xC0 | (cp >> 6)));
+        appendChar( out, end, static_cast<char>(0x80 | (cp & 0x3F)));
+    }
+    else if ( cp <= 0xFFFF ) {
+
+        appendChar( out, end, static_cast<char>(0xE0 | (cp >> 12)));
+        appendChar( out, end, static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+        appendChar( out, end, static_cast<char>(0x80 | (cp & 0x3F)));
+    }
+    else if ( cp <= 0x10FFFF ) {
+
+        appendChar( out, end, static_cast<char>(0xF0 | (cp >> 18)));
+        appendChar( out, end, static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+        appendChar( out, end, static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+        appendChar( out, end, static_cast<char>(0x80 | (cp & 0x3F)));
+    }
+    else throw(ERR_INVALID_UNICODE_ESCAPE);
+}
+
+//----------------------------------------------------------------------------------------
+// A little helper to test for a HEX char.
+//
+//----------------------------------------------------------------------------------------
+int hexValue( char c ) {
+
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+}; // namespace
+
+//----------------------------------------------------------------------------------------
+// The object constructor, nothing to do for now.
+//
+//----------------------------------------------------------------------------------------
+SimTokenizer::SimTokenizer( ) { }
+
+//----------------------------------------------------------------------------------------
+// Helper functions for the current token.
+//
+//----------------------------------------------------------------------------------------
+bool SimTokenizer::isToken( SimTokId tokId ) { 
+    
+    return( currentToken.tid == tokId ); 
+}
+
+bool SimTokenizer::isTokenTyp( SimTokTypeId typId )  { 
+    
+    return( currentToken.typ == typId ); 
+}
+
+bool SimTokenizer::isTokenIdent( char *name ) { 
+    
+    return( currentToken.typ == TYP_IDENT && 
+            strcmp( currentToken.name, name ) == 0 );
+}
+
+SimToken SimTokenizer::token( ) { 
+    
+    return( currentToken );    
+}
+
+SimTokTypeId SimTokenizer::tokTyp( ) { 
+    
+    return( currentToken.typ ); 
+}
+
+SimTokId SimTokenizer::tokId( ) { 
+    
+    return( currentToken.tid ); 
+}
+
+T64Word SimTokenizer::tokVal( ) { 
+    
+    return( currentToken.u.val ); 
+}
+
+char *SimTokenizer::tokName( ) {
+
+    return( currentToken.name );
+}
+
+char *SimTokenizer::tokStr( ) { 
+    
+    return( currentToken.u.str );
+}
+
+//----------------------------------------------------------------------------------------
+// "parseNum" will parse a number. We accept decimals, hexadecimals and binary 
+// numbers. The numeric string can also contain "_" characters for readability.
+// Hex numbers start with "0x", binary with "0b", decimals just with numeric 
+// digits.
+//----------------------------------------------------------------------------------------
+void SimTokenizer::parseNum( ) {
+    
+    currentToken.tid    = TOK_NUM;
+    currentToken.typ    = TYP_NUM;
+    currentToken.u.val  = 0;
+    
+    int     base        = 10;
+    int     maxDigits   = 22;
+    int     digits      = 0;
+    T64Word tmpVal      = 0;
+    
+    if ( currentChar == '0' ) {
+        
+        nextChar( );
+        if (( currentChar == 'X' ) || ( currentChar == 'x' )) {
+            
+            base        = 16;
+            maxDigits   = 16;
+            nextChar( );
+        }
+        else if (( currentChar == 'B' ) || ( currentChar == 'b' )) {
+            
+            base        = 2;
+            maxDigits   = 64;
+            nextChar( );
+        }
+        else if ( !isdigit( currentChar )) {
+
+            return;
+        }
+    }
+    
+    do {
+        
+        if ( currentChar == '_' ) {
+            
+            nextChar( );
+            continue;
+        }
+        else {
+
+            if ( isdigit( currentChar )) {
+
+                int digit = currentChar - '0';
+                if ( digit >= base ) throw ( ERR_INVALID_NUM );
+
+                tmpVal = ( tmpVal * base ) + digit;
+            }
+            else if (( base == 16         ) && 
+                     ( currentChar >= 'a' ) && 
+                     ( currentChar <= 'f' )) {
+
+                tmpVal = ( tmpVal * base ) + currentChar - 'a' + 10;            
+            }
+            else if (( base == 16         ) && 
+                     ( currentChar >= 'A' ) && 
+                     ( currentChar <= 'F' )) {
+
+                tmpVal = ( tmpVal * base ) + currentChar - 'A' + 10;
+            }      
+            else throw ( ERR_INVALID_NUM );
+            
+            nextChar( );
+            digits ++;
+            
+            if ( digits > maxDigits ) throw ( ERR_INVALID_NUM );
+        }
+    }
+    while (
+        ( currentChar == '_' ) ||
+        ( isdigit( currentChar )) ||
+        ( base == 16 &&
+          (( currentChar >= 'a' && currentChar <= 'f' ) ||
+           ( currentChar >= 'A' && currentChar <= 'F' ) ) 
+        )
+    );
+
+    currentToken.u.val = tmpVal;
+}
+
+//----------------------------------------------------------------------------------------
+// "parseHex2" gets a two digit hex number.
+//
+//----------------------------------------------------------------------------------------
+uint32_t SimTokenizer::parseHex2( ) {
+
+    uint32_t value = 0;
+
+    for ( int i = 0; i < 2; i++ ) {
+
+        nextChar( );
+        int h = hexValue( currentChar) ;
+        if ( h < 0 ) throw( ERR_INVALID_HEX_ESCAPE );
+        value = ( value << 4 ) | static_cast<uint32_t> ( h );
+    }
+
+    return value;
+}
+
+//----------------------------------------------------------------------------------------
+// "parseHex4" gets a four digit hex number.
+//
+//----------------------------------------------------------------------------------------
+uint32_t SimTokenizer::parseHex4( ) {
+
+    uint32_t value = 0;
+
+    for ( int i = 0; i < 4; i++ ) {
+
+        nextChar( );
+        int h = hexValue( currentChar );
+        if ( h < 0 ) throw( ERR_INVALID_UNICODE_ESCAPE );
+        value = ( value << 4 ) | static_cast<uint32_t> ( h );
+    }
+
+    return value;
+}
+
+//----------------------------------------------------------------------------------------
+// "parseHex8" gets an eight digit hex number.
+//
+//----------------------------------------------------------------------------------------
+uint32_t SimTokenizer::parseHex8( ) {
+
+    uint32_t value = 0;
+
+    for ( int i = 0; i < 8; i++ ) {
+
+        nextChar( );
+        int h = hexValue( currentChar );
+        if ( h < 0 ) throw( ERR_INVALID_UNICODE_ESCAPE) ;
+        value = ( value << 4 ) | static_cast<uint32_t> ( h );
+    }
+
+    return value;
+}
+
+//----------------------------------------------------------------------------------------
+// "parseString" gets a string. We manage special characters inside the string 
+// with the "\" prefix. Right now, we do not use strings, so the function is 
+// perhaps for the future. We will just parse it, but record no result. One day,
+// the entire simulator might use the string functions. Then we need it.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizer::parseString() {
+
+    currentToken.tid   = TOK_STR;
+    currentToken.typ   = TYP_STR;
+    currentToken.u.str = nullptr;
+
+    char *out = strTokenBuf;
+    char *end = strTokenBuf + sizeof( strTokenBuf ) - 1;
+
+    do {
+
+        nextChar( );
+
+        while (( currentChar != EOS_CHAR ) && ( currentChar != '"' )) {
+
+            if ( currentChar == '\\' ) {
+
+                nextChar( );
+
+                if ( currentChar == EOS_CHAR )
+                    throw( ERR_EXPECTED_CLOSING_QUOTE );
+
+                switch (currentChar) {
+
+                    case 'n': appendChar( out, end, '\n' ); break;
+                    case 't': appendChar( out, end, '\t' ); break;
+                    case 'r': appendChar( out, end, '\r' ); break;
+                    case '\\': appendChar( out, end, '\\' ); break;
+                    case '"': appendChar( out, end, '"' ); break;
+
+                    case 'x': {
+
+                        uint32_t v = parseHex2( );
+                        appendChar( out, end, static_cast<char> ( v )) ;
+                        
+                    } break;
+
+                    case 'u': {
+
+                        uint32_t codepoint = parseHex4( );
+
+                        if ( codepoint >= 0xD800 && codepoint <= 0xDFFF )
+                            throw( ERR_INVALID_UNICODE_ESCAPE );
+
+                        appendUTF8( out, end, codepoint );
+                        
+                    } break;
+
+                    case 'U': {
+
+                        uint32_t cp = parseHex8( );
+                        appendUTF8( out, end, cp );
+                    
+                    } break;
+
+                    default: {
+
+                        appendChar( out, end, currentChar );
+                    
+                    } break;
+                }
+
+            } 
+            else {
+                
+                appendChar( out, end, currentChar );
+            }
+
+            nextChar( );
+        }
+
+        if ( currentChar != '"' ) throw(ERR_EXPECTED_CLOSING_QUOTE);
+
+        nextChar( );
+        while ( isspace( currentChar )) nextChar();
+
+    } while ( currentChar == '"' );
+
+    appendChar( out, end, '\0' ); 
+    currentToken.u.str = strTokenBuf;
+}
+
+//----------------------------------------------------------------------------------------
+// "parseIdent" parses an identifier. It is a sequence of characters starting 
+// with an alpha character. An identifier found in the token table will assume 
+// the type and value of the token found. Any other identifier is just an 
+// identifier symbol. There is one more thing. There are qualified constants 
+// that begin with a character followed by a percent character, followed by a 
+// numeric value. During the character analysis, We first check for these kind
+// of qualifiers and if found hand over to parse a number.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizer::parseIdent( ) {
+    
+    currentToken.tid    = TOK_IDENT;
+    currentToken.typ    = TYP_IDENT;
+
+    char identBuf[ MAX_TOK_NAME_SIZE ] = "";
+    
+    if (( currentChar == 'L' ) || ( currentChar == 'l' )) {
+        
+        addChar( identBuf, sizeof( identBuf ), currentChar );
+        nextChar( );
+        
+        if ( currentChar == '%' ) {
+            
+            addChar( identBuf, sizeof( identBuf ), currentChar );
+            nextChar( );
+            
+            if ( isdigit( currentChar )) {
+                
+                parseNum( );
+                currentToken.u.val &= 0x00000000FFFFF000;
+                currentToken.u.val >>= 12;
+                return;
+            }
+            else throw ( ERR_INVALID_CHAR_IN_IDENT );
+        }
+    }
+    else if (( currentChar == 'R' ) || ( currentChar == 'r' )) {
+        
+        addChar( identBuf, sizeof( identBuf ), currentChar );
+        nextChar( );
+        
+        if ( currentChar == '%' ) {
+            
+            addChar( identBuf, sizeof( identBuf ), currentChar );
+            nextChar( );
+            
+            if ( isdigit( currentChar )) {
+                
+                parseNum( );
+                currentToken.u.val &= 0x0000000000000FFF;
+                return;
+            }
+            else throw ( ERR_INVALID_CHAR_IN_IDENT );
+        }
+    }
+    else if (( currentChar == 'M' ) || ( currentChar == 'm' )) {
+        
+        addChar( identBuf, sizeof( identBuf ), currentChar );
+        nextChar( );
+        
+        if ( currentChar == '%' ) {
+            
+            addChar( identBuf, sizeof( identBuf ), currentChar );
+            nextChar( );
+            
+            if ( isdigit( currentChar )) {
+                
+                parseNum( );
+                currentToken.u.val &= 0x000FFFFF00000000;
+                currentToken.u.val >>= 32;
+                return;
+            }
+            else throw ( ERR_INVALID_CHAR_IN_IDENT );
+        }
+    }
+    else if (( currentChar == 'U' ) || ( currentChar == 'u' )) {
+        
+        addChar( identBuf, sizeof( identBuf ), currentChar );
+        nextChar( );
+        
+        if ( currentChar == '%' ) {
+            
+            addChar( identBuf, sizeof( identBuf ), currentChar );
+            nextChar( );
+            
+            if ( isdigit( currentChar )) {
+                
+                parseNum( );
+                currentToken.u.val &= 0xFFF0000000000000;
+                currentToken.u.val >>= 52;
+                return;
+            }
+            else throw ( ERR_INVALID_CHAR_IN_IDENT );
+        }
+    }
+    
+    while (( isalnum( currentChar )) || ( currentChar == '_' )) {
+        
+        addChar( identBuf, sizeof( identBuf ), currentChar );
+        nextChar( );
+    }
+    
+    int index = lookupToken( identBuf, tokTab );
+    
+    if ( index == - 1 ) {
+        
+        strncpy( currentToken.name, identBuf, MAX_TOK_NAME_SIZE );
+        currentToken.typ    = TYP_IDENT;
+        currentToken.tid    = TOK_IDENT;
+    }
+    else currentToken = tokTab[ index ];
+}
+
+//----------------------------------------------------------------------------------------
+// "nextToken" is the entry point to the token business. It returns the next token from
+// the input string.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizer::nextToken( ) {
+
+    currentToken.typ    = TYP_NIL;
+    currentToken.tid    = TOK_NIL;
+    currentToken.u.val  = 0;
+    
+    while (( currentChar == ' '  ) || ( currentChar == '\n' )) nextChar( );
+    
+    if ( isalpha( currentChar )) {
+        
+       parseIdent( );
+    }
+    else if ( isdigit( currentChar )) {
+        
+       parseNum( );
+    }
+    else if ( currentChar == '"' ) {
+        
+        parseString( );
+    }
+    else if ( currentChar == '.' ) {
+        
+        currentToken.typ   = TYP_SYM;
+        currentToken.tid   = TOK_PERIOD;
+        nextChar( );
+    }
+    else if ( currentChar == ':' ) {
+        
+        currentToken.typ   = TYP_SYM;
+        currentToken.tid   = TOK_COLON;
+        nextChar( );
+    }
+    else if ( currentChar == '=' ) {
+
+        nextChar( );
+        if ( currentChar == '=' ) {
+
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_EQ;
+            nextChar( );
+        }
+        else {
+        
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_EQUAL;
+        }
+    }
+    else if ( currentChar == '!' ) {
+
+        nextChar( );
+        if ( currentChar == '=' ) {
+
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_NE;
+            nextChar( );
+        }
+        else {
+        
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_LNOT;
+        }
+    }
+    else if ( currentChar == '<' ) {
+
+        nextChar( );
+        if ( currentChar == '=' ) {
+
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_LE;
+            nextChar( );
+        }
+        else {
+        
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_LT;
+
+        }
+    }
+    else if ( currentChar == '>' ) {
+
+        nextChar( );
+        if ( currentChar == '=' ) {
+
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_GE;
+            nextChar( );
+        }
+        else {
+        
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_GT;
+        }
+    }
+    else if ( currentChar == '+' ) {
+        
+        currentToken.tid = TOK_PLUS;
+        nextChar( );
+    }
+    else if ( currentChar == '-' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_MINUS;
+        nextChar( );
+    }
+    else if ( currentChar == '*' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_MULT;
+        nextChar( );
+    }
+    else if ( currentChar == '/' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_DIV;
+        nextChar( );
+    }
+    else if ( currentChar == '%' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_MOD;
+        nextChar( );
+    }
+    else if ( currentChar == '&' ) {
+
+        nextChar( );
+        if ( currentChar == '&' ) {
+
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_LAND;
+            nextChar( );
+        }
+        else {
+        
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_AND;
+        }
+    }
+    else if ( currentChar == '|' ) {
+      
+        nextChar( );
+        if ( currentChar == '|' ) {
+
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_LOR;
+            nextChar( );
+        }
+        else {
+        
+            currentToken.typ   = TYP_SYM;
+            currentToken.tid   = TOK_OR;
+        }
+    }
+    else if ( currentChar == '^' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_XOR;
+        nextChar( );
+    }
+    else if ( currentChar == '~' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_NEG;
+        nextChar( );
+    }
+    else if ( currentChar == '(' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_LPAREN;
+        nextChar( );
+    }
+    else if ( currentChar == ')' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_RPAREN;
+        nextChar( );
+    }
+    else if ( currentChar == '[' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_LBRACK;
+        nextChar( );
+    }
+    else if ( currentChar == ']' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_RBRACK;
+        nextChar( );
+    }
+    else if ( currentChar == ',' ) {
+        
+        currentToken.typ    = TYP_SYM;
+        currentToken.tid    = TOK_COMMA;
+        nextChar( );
+    }
+    else if ( currentChar == EOS_CHAR ) {
+        
+        currentToken.typ    = TYP_NIL;
+        currentToken.tid    = TOK_EOS;
+    }
+    else {
+    
+        currentToken.tid = TOK_ERR;
+        printf( "invalid ch: %d\n", currentChar );
+        throw ( ERR_INVALID_CHAR_IN_IDENT );
+    }
+}
+
+//----------------------------------------------------------------------------------------
+// Helper functions.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizer::checkEOS( ) {
+    
+    if ( ! isToken( TOK_EOS )) throw ( ERR_TOO_MANY_ARGS_CMD_LINE );
+}
+
+void SimTokenizer::acceptComma( ) {
+    
+    if ( isToken( TOK_COMMA )) nextToken( );
+    else throw ( ERR_EXPECTED_COMMA );
+}
+
+void SimTokenizer::acceptColon( ) {
+    
+    if ( isToken( TOK_COLON )) nextToken( );
+    else throw ( ERR_EXPECTED_COLON );
+}
+
+void SimTokenizer::acceptEqual( ) {
+    
+    if ( isToken( TOK_EQUAL )) nextToken( );
+    else throw ( ERR_EXPECTED_COLON );
+}
+
+void SimTokenizer::acceptLparen( ) {
+    
+    if ( isToken( TOK_LPAREN )) nextToken( );
+    else throw ( ERR_EXPECTED_LPAREN );
+}
+
+void SimTokenizer::acceptRparen( ) {
+    
+    if ( isToken( TOK_RPAREN )) nextToken( );
+    else throw ( ERR_EXPECTED_LPAREN );
+}
+
+SimTokId SimTokenizer::acceptTokSym( SimErrMsgId errId ) {
+
+    if ( isTokenTyp( TYP_SYM )) {
+        
+        SimTokId tmp = tokId( );
+        nextToken( );
+        return( tmp );
+    }
+    else throw ( errId );
+}
+
+//****************************************************************************************
+//****************************************************************************************
+//
+// Methods for SimTokenizerFromString class.   
+//
+//----------------------------------------------------------------------------------------
+SimTokenizerFromString::SimTokenizerFromString(  ) : SimTokenizer( ) { }
+
+//----------------------------------------------------------------------------------------
+// We initialize a couple of globals that represent the current state of the 
+// parsing process. This call is the first before any other method can be 
+// called.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizerFromString::setupTokenizer( char *lineBuf, const SimToken *tTab ) {
+
+    strncpy( tokenLine, lineBuf, strlen( lineBuf ) + 1 );
+    
+    this -> tokTab                  = tTab;
+    this -> currentLineLen          = strlen( tokenLine );
+    this -> currentCharIndex        = 0;
+    this -> currentChar             = ' ';
+}
+
+//----------------------------------------------------------------------------------------
+// "nextChar" returns the next character from the token line string.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizerFromString::nextChar( ) {
+
+    if ( currentCharIndex < currentLineLen ) {
+        
+        currentChar = tokenLine[ currentCharIndex ];
+        currentCharIndex ++;
+    }
+    else currentChar = EOS_CHAR;
+}
+
+//****************************************************************************************
+//****************************************************************************************
+//
+// Methods for SimTokenizerFromFile class.   
+//
+//----------------------------------------------------------------------------------------
+SimTokenizerFromFile::SimTokenizerFromFile(  ) : SimTokenizer( ) { }
+
+SimTokenizerFromFile::~SimTokenizerFromFile( ) {
+
+    closeFile( );
+}
+
+//----------------------------------------------------------------------------------------
+// We initialize a couple of globals that represent the current state of the 
+// parsing process. This call is the first before any other method can be 
+// called.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizerFromFile::setupTokenizer( char *filePath, const SimToken *tTab ) {
+
+    this -> tokTab          = tTab;
+    this -> currentChar     = ' ';
+
+    openFile( filePath );
+}
+
+//----------------------------------------------------------------------------------------
+// "openFile" opens the source file for reading.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizerFromFile::openFile( char *filePath ) {
+    
+    srcFile = fopen( filePath, "r" );
+    
+    if ( srcFile == nullptr ) throw ( ERR_FILE_NOT_FOUND );
+}
+
+//----------------------------------------------------------------------------------------
+// "closeFile" closes the source file.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizerFromFile::closeFile( ) {
+
+    if ( srcFile != nullptr ) {
+        
+        fclose( srcFile );
+        srcFile = nullptr;
+    }
+}   
+
+//----------------------------------------------------------------------------------------
+// "nextChar" returns the next character from the source file. We also maintain
+// a character and line index.
+//
+//----------------------------------------------------------------------------------------
+void SimTokenizerFromFile::nextChar( ) {
+
+    if ( srcFile != nullptr ) {
+        
+        int ch = fgetc( srcFile );
+      
+        if ( ch == EOF ) {
+
+            currentChar = EOS_CHAR;
+        }
+        else if ( ch == '\n' ) {
+            
+            currentLineIndex ++;
+            currentCharIndex = 0;
+            currentChar      = ' ';
+        }
+        else {
+            
+            currentCharIndex ++;
+            currentChar = static_cast<char>( ch );
+        }
+    }
+    else currentChar = EOS_CHAR;
+}   
+
+#endif
+

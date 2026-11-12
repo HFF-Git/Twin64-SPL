@@ -23,6 +23,51 @@
 //----------------------------------------------------------------------------------------
 #pragma once
 
+//----------------------------------------------------------------------------------------
+// Mac and Windows know different include files and procedure names for some 
+// POSIX routines. Learned the hard way that these files better come really early
+// in the project. All libraries and modules depend on these basic constants and
+// type definitions and include the "T64-Common.h" file early on.
+//
+//----------------------------------------------------------------------------------------
+#if __APPLE__
+#include <unistd.h>
+#include <termios.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <iostream>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#else
+#define _CRT_SECURE_NO_WARNINGS
+#define NOMINMAX
+#include <windows.h>
+#include <conio.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <string.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <iostream>
+#include <io.h>
+#endif
+
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
 #include "Version.h"
 
 //----------------------------------------------------------------------------------------
@@ -30,9 +75,39 @@
 //
 //----------------------------------------------------------------------------------------
 const int MAX_TOKEN_NAME = 32;
+const int MAX_FILE_PATH_SIZE = 256;
 
 
 // ??? options and flags...
+
+//----------------------------------------------------------------------------------------
+// Command line option argument types and structure. This is the "argc", "argv"
+// parser used to parse long options (e.g. --option=value).
+//
+//----------------------------------------------------------------------------------------
+enum SimCmdLineArgOptions : uint32_t {
+
+    CL_OPT_NO_ARGUMENT,         
+    CL_OPT_REQUIRED_ARGUMENT,   
+    CL_OPT_OPTIONAL_ARGUMENT
+};
+
+enum SimCmdLineArgVal : uint32_t {
+
+    CL_ARG_VAL_NIL,             
+    CL_ARG_VAL_HELP,             
+    CL_ARG_VAL_VERSION,
+    CL_ARG_VAL_VERBOSE,        
+    CL_ARG_VAL_CONFIG_FILE,      
+    CL_ARG_VAL_LOG_FILE
+};
+
+struct CmdLineOptions {
+
+    const char              *name;
+    SimCmdLineArgOptions    argOpt;   
+    int                     val;
+};
 
 
 //----------------------------------------------------------------------------------------
@@ -50,6 +125,19 @@ enum TokenType {
     TOKEN_COMMENT,
     TOKEN_EOF
 };
+
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
+enum TokenId {
+
+    TOK_NIL,
+
+};
+
+
+
 
 enum ScopeDescType {
 
@@ -103,15 +191,23 @@ enum ItemDescType {
 
 //----------------------------------------------------------------------------------------
 //
-//
+// ??? add file info ... 
+// ??? how complex does a token need to be ? 
+// ??? do we need a kind of class to better check groups of tokens ( e.g. relOp ? )
 //----------------------------------------------------------------------------------------
 struct TokenDesc {
 
+    TokenId id;
+
+    unsigned lineIndex;
+    unsigned charIndex;
     
     union {
 
-    } u;
+        int64_t val;
+        char    *str; 
 
+    } u;
 };
 
 //----------------------------------------------------------------------------------------
@@ -249,3 +345,19 @@ void        freeObjDesc( ObjDesc *objDesc );
 void        freeTypeDesc( TypeDesc *typeDesc ); 
 
 void        addToScope( ScopeDesc *scopeDesc, ObjDesc *objDesc );
+
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
+void            initScanner( );
+void            openSrcFile( );
+void            nextToken( );
+TokenDesc       *currentToken( );
+bool            isToken( TokenId  id );
+void            acceptToken( TokenId id );
+void            acceptComma( );
+void            acceptColon( );
+void            acceptEqual( );
+void            acceptLparen( );
+void            acceptRparen( );

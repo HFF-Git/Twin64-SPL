@@ -23,12 +23,188 @@
 //----------------------------------------------------------------------------------------
 #include "Compiler.h"
 
+// ??? adapt to compiler .....
+
 //----------------------------------------------------------------------------------------
-// Name space for local routines.
+// Local data for command line option parsing.
 //
 //----------------------------------------------------------------------------------------
 namespace {
 
+//----------------------------------------------------------------------------------------
+int  optIndex = 1;  
+
+bool verboseFlag;
+
+char logFileName[ MAX_FILE_PATH_SIZE ];
+char configFileName[ MAX_FILE_PATH_SIZE ];
+
+
+//----------------------------------------------------------------------------------------
+// The simulator offers a set of command line options. Each option has a name, 
+// an argument type and a value returned when the option is found.
+//
+//----------------------------------------------------------------------------------------
+const CmdLineOptions optionTable[ ] = {
+
+    { "help",       CL_OPT_NO_ARGUMENT,        CL_ARG_VAL_HELP },
+    { "version",    CL_OPT_NO_ARGUMENT,        CL_ARG_VAL_VERSION },
+    { "verbose",    CL_OPT_NO_ARGUMENT,        CL_ARG_VAL_VERBOSE },
+    { "configfile", CL_OPT_REQUIRED_ARGUMENT,  CL_ARG_VAL_CONFIG_FILE },
+    { "logfile",    CL_OPT_REQUIRED_ARGUMENT,  CL_ARG_VAL_LOG_FILE },
+    { 0,            CL_OPT_NO_ARGUMENT,        0 }
 };
 
-// ??? borrow from Simulator ...
+} // namespace
+
+//----------------------------------------------------------------------------------------
+// "parseCmdLineOptions" function to parse long command line options. This routine 
+// is called repeatedly to parse all command line options. It returns the value field
+// of the matched option or -1 if no more options are found. The optArg variable is set
+// to the argument string if an argument is expected.   
+//
+//----------------------------------------------------------------------------------------
+int parseCmdLineOptions( int    argc, 
+                         char   *argv[ ],
+                         const  CmdLineOptions *optTable,
+                         char   **optArg ) {
+
+    if ( optIndex >= argc ) return ( -1 );
+
+    const char *arg = argv[ optIndex ];
+
+    if ( strncmp(arg, "--", 2) != 0 ) {
+
+        optIndex++;
+        return 0;
+    }
+
+    const char *name    = arg + 2;
+    const char *eq      = strchr(name, '=');
+    size_t nameLen      = (( eq ) ? ( static_cast<size_t>( eq - name )) : ( strlen( name )));
+
+    for ( int i = 0; ( optTable && optTable[i].name ); i++ ) {
+
+        if (( strncmp( name, optTable[i].name, nameLen ) == 0 ) &&
+             ( strlen(optTable[i].name) == nameLen )) {
+
+            if ( optTable[i].argOpt == CL_OPT_REQUIRED_ARGUMENT) {
+                
+                if ( eq ) {
+
+                    *optArg = const_cast<char *>( eq + 1 );
+                }
+                else if ( optIndex + 1 < argc ) {
+
+                    *optArg = argv[ ++optIndex ];
+                }
+                else {
+                    
+                    fprintf( stderr, "Option '--%s' requires an argument\n", 
+                            optTable[ i ].name);
+                    return ( -1 );
+                }
+            } 
+            else if ( optTable[ i ].argOpt == CL_OPT_OPTIONAL_ARGUMENT ) {
+                
+                *optArg = (( eq ) ? (const_cast<char *>( eq + 1 )) : ( NULL ));
+            
+            } else *optArg = NULL;
+    
+            optIndex++;
+            return optTable[ i ].val;
+        }
+    }
+
+    fprintf( stderr, "Unknown option '%s'\n", arg ) ;
+    optIndex++;
+    return '?';
+}
+
+//----------------------------------------------------------------------------------------
+// "processCmdLineOptions" function to process all command line options. We call the
+// parser in a loop to get all options one by one. The help option is special in 
+// that it will list the program call help and then exit.
+//
+//----------------------------------------------------------------------------------------
+void processCmdLineOptions( int argc, char *argv[ ] ) {
+
+    char *optArg = NULL;
+    int   optVal = 0;
+
+    while (( optVal = parseCmdLineOptions( argc, 
+                                           argv, 
+                                           optionTable, 
+                                           &optArg )) != -1 ) {
+
+        switch ( optVal ) {
+
+            case CL_ARG_VAL_HELP:  {
+
+                printf( "Twin64 Compiler Version %s, PatchLevel %d\n\n", 
+                        COMPILER_VERSION, COMPILER_PATCH_LEVEL );
+
+                printf( "Usage: T64SPL [options]\n\n" );
+
+                printf( "Options:\n" );
+                printf( "  --help               : display this help message\n" );
+                printf( "  --version            : display program version\n" );
+                printf( "  --verbose            : enable verbose output\n" );
+                printf( "  --configfile=<file>  : specify configuration file\n" );
+                printf( "  --logfile=<file>     : specify log file\n" );
+                exit( 0 );
+            
+            } break;
+
+            case CL_ARG_VAL_VERSION: {
+
+                printf( "Twin64 Compiler Version %s, PatchLevel %d\n\n", 
+                        COMPILER_VERSION, COMPILER_PATCH_LEVEL );
+                exit( 0 );
+
+            } break;
+
+            case CL_ARG_VAL_VERBOSE: {
+
+                verboseFlag = true;
+        
+            } break;
+
+            case CL_ARG_VAL_CONFIG_FILE: {
+
+                if ( optArg ) {
+
+                    strncpy( configFileName, optArg, MAX_FILE_PATH_SIZE - 1 );
+                    configFileName[ MAX_FILE_PATH_SIZE - 1 ] = '\0';
+                } 
+                else {
+                
+                    printf( "Error: --configfile requires a filename\n" );
+                    exit( 1 );
+                }
+
+            } break; 
+
+            case CL_ARG_VAL_LOG_FILE: {
+
+                if ( optArg ) {
+        
+                    strncpy( logFileName, optArg, MAX_FILE_PATH_SIZE - 1 );
+                             logFileName[ MAX_FILE_PATH_SIZE - 1 ] = '\0';
+                }
+                else {
+        
+                    printf( "Error: --logfile requires a filename\n" );
+                    exit( 1 );
+                }
+
+            } break; 
+
+            default: {
+
+                printf( "Invalid command parameter option, use help\n" );
+                exit( 1 );
+            };
+        }
+    }
+}

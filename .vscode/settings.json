@@ -1,0 +1,88 @@
+{
+    "[c]": {
+        "editor.rulers": [
+            { "column": 80, "color": "#CCCCCC40" },
+            { "column": 90, "color": "#CCCCCC40" }
+        ]
+    },
+    "[cpp]": {
+        "editor.rulers": [
+            { "column": 80, "color": "#CCCCCC40" },
+            { "column": 90, "color": "#CCCCCC40" }
+        ]
+    },
+    "[cmake]": {
+        "editor.rulers": [
+            { "column": 80, "color": "#CCCCCC40" },
+            { "column": 90, "color": "#CCCCCC40" }
+        ]
+    },
+    "files.associations": {
+        "sstream": "cpp",
+        "istream": "cpp",
+        "locale": "cpp",
+        "streambuf": "cpp",
+        "__hash_table": "cpp",
+        "__split_buffer": "cpp",
+        "array": "cpp",
+        "bitset": "cpp",
+        "deque": "cpp",
+        "initializer_list": "cpp",
+        "queue": "cpp",
+        "regex": "cpp",
+        "stack": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp",
+        "variant": "cpp",
+        "__locale": "cpp",
+        "ios": "cpp",
+        "new": "cpp",
+        "print": "cpp",
+        "typeinfo": "cpp",
+        "__config": "cpp",
+        "memory": "cpp",
+        "optional": "cpp",
+        "__bit_reference": "cpp",
+        "__verbose_abort": "cpp",
+        "cctype": "cpp",
+        "clocale": "cpp",
+        "cmath": "cpp",
+        "cstdarg": "cpp",
+        "cstdint": "cpp",
+        "cstdio": "cpp",
+        "cstdlib": "cpp",
+        "cstring": "cpp",
+        "ctime": "cpp",
+        "cwchar": "cpp",
+        "iosfwd": "cpp",
+        "iostream": "cpp",
+        "limits": "cpp",
+        "mutex": "cpp",
+        "stdexcept": "cpp",
+        "__node_handle": "cpp",
+        "complex": "cpp",
+        "cwctype": "cpp",
+        "execution": "cpp",
+        "fstream": "cpp",
+        "iomanip": "cpp",
+        "ratio": "cpp",
+        "algorithm": "cpp"
+    },
+    "spellright.language": [
+        "en"
+    ],
+    "spellright.documentTypes": [
+        "markdown",
+        "latex",
+        "plaintext",
+        "cpp",
+        "Log"
+    ],
+    "spellright.parserByClass": {
+        "Log": {
+            "parser": "plain"
+        }
+    }
+}
