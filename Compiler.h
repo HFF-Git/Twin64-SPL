@@ -74,8 +74,9 @@
 //
 //
 //----------------------------------------------------------------------------------------
-const int MAX_TOKEN_NAME = 32;
+const int MAX_TOKEN_NAME     = 32;
 const int MAX_FILE_PATH_SIZE = 256;
+const int MAX_TOKEN_STR_SIZE = 256;
 
 
 // ??? options and flags...
@@ -109,23 +110,6 @@ struct CmdLineOptions {
     int                     val;
 };
 
-
-//----------------------------------------------------------------------------------------
-//
-//
-//----------------------------------------------------------------------------------------
-enum TokenType {
-
-    TOKEN_NONE,
-    TOKEN_IDENTIFIER,
-    TOKEN_NUMBER,
-    TOKEN_STRING,
-    TOKEN_OPERATOR,
-    TOKEN_KEYWORD,
-    TOKEN_COMMENT,
-    TOKEN_EOF
-};
-
 //----------------------------------------------------------------------------------------
 //
 //
@@ -133,6 +117,47 @@ enum TokenType {
 enum TokenId {
 
     TOK_NIL,
+    TOK_EOS,
+    TOK_EOF,
+    TOK_ERR,
+
+    TOK_IDENT,
+    TOK_NUM,
+    TOK_STR,
+
+    TOK_COMMA,
+    TOK_COLON,
+    TOK_PERIOD,
+    TOK_LPAREN,
+    TOK_RPAREN,
+    TOK_LBRACK,
+    TOK_RBRACK,
+    TOK_EQUAL,
+    TOK_EQ,
+    TOK_NE,
+    TOK_LNOT,
+    TOK_LE,
+    TOK_LT,
+    TOK_GE,
+    TOK_GT,
+    TOK_PLUS,
+    TOK_MINUS,
+    TOK_MULT,
+    TOK_DIV,
+    TOK_MOD,
+    TOK_LAND,
+    TOK_AND,
+    TOK_LOR,
+    TOK_OR,
+    TOK_XOR,
+    TOK_NEG,
+
+    TOK_IF, 
+    TOK_ELSE,
+    
+
+
+
 
 };
 
@@ -183,32 +208,26 @@ enum ItemDescType {
 //----------------------------------------------------------------------------------------
 // ??? annotation 
 
-//----------------------------------------------------------------------------------------
-//
-//
-//----------------------------------------------------------------------------------------
-// ??? source file info ...
 
-//----------------------------------------------------------------------------------------
-//
-// ??? add file info ... 
-// ??? how complex does a token need to be ? 
-// ??? do we need a kind of class to better check groups of tokens ( e.g. relOp ? )
-//----------------------------------------------------------------------------------------
-struct TokenDesc {
+enum CompileErrors {
 
-    TokenId id;
+    NO_ERR                          = 0,
+    ERR_STRING_TOO_LONG             = 1,
+    ERR_INVALID_UNICODE_ESCAPE      = 2,
+    ERR_INVALID_NUM                 = 3,
+    ERR_INVALID_HEX_ESCAPE          = 4,
+    ERR_EXPECTED_CLOSING_QUOTE      = 5,
+    ERR_INVALID_CHAR_IN_IDENT       = 6,
+    ERR_EXPECTED_COMMA              = 7,
+    ERR_EXPECTED_COLON              = 8,
+    ERR_EXPECTED_LPAREN             = 9,
+    ERR_EXPECTED_RPAREN             = 10,
+    ERR_FILE_NOT_FOUND              = 11,
 
-    unsigned lineIndex;
-    unsigned charIndex;
-    
-    union {
 
-        int64_t val;
-        char    *str; 
-
-    } u;
 };
+
+
 
 //----------------------------------------------------------------------------------------
 // Forwards.
@@ -336,28 +355,49 @@ struct ItemDesc {
 // are kept in the file anonymous name space.
 //
 //----------------------------------------------------------------------------------------
-ScopeDesc   *makeScopeDesc( );
-ObjDesc     *makeObjDesc( );
-TypeDesc    *makeTypeDesc( );
 
-void        freeScopeDesc( ScopeDesc *scopeDesc );
-void        freeObjDesc( ObjDesc *objDesc );
-void        freeTypeDesc( TypeDesc *typeDesc ); 
 
-void        addToScope( ScopeDesc *scopeDesc, ObjDesc *objDesc );
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
+
+
+void            openSrcFile( const char *filePath );
+void            closeSrcFile( );
+char            srcFileGetChar( );
+unsigned        srcFileGetLineNum( );
+unsigned        srcFileGetCharIndex( );
 
 //----------------------------------------------------------------------------------------
 //
 //
 //----------------------------------------------------------------------------------------
 void            initScanner( );
-void            openSrcFile( );
 void            nextToken( );
-TokenDesc       *currentToken( );
+TokenId         tokenId( );
 bool            isToken( TokenId  id );
-void            acceptToken( TokenId id );
+
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
+ScopeDesc       *makeScopeDesc( );
+ObjDesc         *makeObjDesc( );
+TypeDesc        *makeTypeDesc( );
+char            *makeStr( const char *inputStr );
+
+void            freeScopeDesc( ScopeDesc *scopeDesc );
+void            freeObjDesc( ObjDesc *objDesc );
+void            freeTypeDesc( TypeDesc *typeDesc ); 
+
+void            addToScope( ScopeDesc *scopeDesc, ObjDesc *objDesc );
+
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
 void            acceptComma( );
 void            acceptColon( );
-void            acceptEqual( );
 void            acceptLparen( );
 void            acceptRparen( );

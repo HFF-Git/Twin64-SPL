@@ -29,7 +29,40 @@
 //----------------------------------------------------------------------------------------
 namespace {
 
+//----------------------------------------------------------------------------------------
+// ??? should rather be in annotation ?
+
+void compErr( CompileErrors errId ) {
+
+    
+}
+
 };
+
+void acceptComma( ) {
+
+    if ( tokenId( ) == TOK_COMMA ) nextToken( );
+    else compErr( ERR_EXPECTED_COMMA );
+}
+
+void acceptColon( ) {
+
+    if ( tokenId( ) == TOK_COLON ) nextToken( );
+    else compErr( ERR_EXPECTED_COLON );
+}
+
+void acceptLparen( ) {
+
+    if ( tokenId( ) == TOK_LPAREN ) nextToken( );
+    else compErr( ERR_EXPECTED_LPAREN );
+}
+
+void acceptRparen( ) {
+
+    if ( tokenId( ) == TOK_RPAREN ) nextToken( );
+    else compErr( ERR_EXPECTED_RPAREN );
+}
+
 
 
 

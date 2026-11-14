@@ -29,7 +29,72 @@
 //----------------------------------------------------------------------------------------
 namespace {
 
-};
+//----------------------------------------------------------------------------------------
+//
+//
+//----------------------------------------------------------------------------------------
+FILE            *srcFile                                = nullptr;
+char            srcFileName[ MAX_FILE_PATH_SIZE ]       = { 0 };
+unsigned        srcFileLineIndex                        = 0;
+unsigned        srcFileCharIndex                        = 0;
+
+char            srcFileLine[ MAX_INPUT ]                = { 0 };
+char            currentChar                             = ' ';
+
+}; // namespace
 
 
+void openSrcFile( const char *filePath ) {
 
+    srcFile = fopen( filePath, "r" );
+    
+    if ( srcFile == nullptr ) {
+        
+        // ??? what to report ...   
+    }
+}
+
+
+void closeSrcFile( ) {
+
+    if ( srcFile != nullptr ) {
+        
+        fclose( srcFile );
+        srcFile = nullptr;
+    }
+}
+
+
+char srcFileGetChar( ) {
+
+    if ( srcFile == nullptr ) return( 0 );
+
+        
+    int ch = fgetc( srcFile );
+    
+    if ( ch == EOF ) {
+
+        currentChar = 0;
+    }
+    else if ( ch == '\n' ) {
+        
+        srcFileLineIndex ++;
+        srcFileCharIndex = 0;
+        currentChar      = ' ';
+    }
+    else {
+        
+        srcFileCharIndex ++;
+        currentChar = static_cast<char>( ch );
+    }
+}
+
+unsigned srcFileGetLineNum( ) {
+
+    return( srcFileLineIndex );
+}
+
+unsigned  srcFileGetCharIndex( ) {
+
+    return( srcFileCharIndex );
+}
