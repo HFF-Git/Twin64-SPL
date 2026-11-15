@@ -39,6 +39,7 @@ add_executable( ${PROJECT_NAME}
 
     compiler.h 
     Compiler.cpp
+    MemArena.cpp
     ConfigOpt.cpp 
     SrcFile.cpp
     Annotation.cpp
@@ -46,8 +47,8 @@ add_executable( ${PROJECT_NAME}
     Scanner.cpp 
     Parser.cpp 
     CodeGen.cpp 
-    ListFileGen.cpp 
     ObjFileGen.cpp 
+    ListFileGen.cpp 
 )
 
 target_link_libraries( ${PROJECT_NAME} PRIVATE 

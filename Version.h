@@ -30,7 +30,7 @@
 //----------------------------------------------------------------------------------------
 const char COMPILER_VERSION[ ] = "A.01.00";
 const char COMPILER_GIT_BRANCH[ ] = "main";
-const int  COMPILER_PATCH_LEVEL = 180;
+const int  COMPILER_PATCH_LEVEL = 1;
 
 #if __APPLE__
 const bool COMPILER_ON_APPLE = true;

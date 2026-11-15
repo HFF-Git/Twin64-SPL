@@ -23,188 +23,290 @@
 //----------------------------------------------------------------------------------------
 #include "Compiler.h"
 
-// ??? adapt to compiler .....
-
 //----------------------------------------------------------------------------------------
 // Local data for command line option parsing.
 //
 //----------------------------------------------------------------------------------------
 namespace {
 
-//----------------------------------------------------------------------------------------
-int  optIndex = 1;  
+char sourceFileName[ MAX_FILE_PATH_SIZE ] = { 0 };
+char logFileName[ MAX_FILE_PATH_SIZE ]    = { 0 };
+char objectFileName[ MAX_FILE_PATH_SIZE ] = { 0 };
+char asmFileName[ MAX_FILE_PATH_SIZE ]    = { 0 };
 
-bool verboseFlag;
-
-char logFileName[ MAX_FILE_PATH_SIZE ];
-char configFileName[ MAX_FILE_PATH_SIZE ];
-
+bool verboseFlag = false;
 
 //----------------------------------------------------------------------------------------
-// The simulator offers a set of command line options. Each option has a name, 
-// an argument type and a value returned when the option is found.
+//
+// Command line option definitions.
 //
 //----------------------------------------------------------------------------------------
-const CmdLineOptions optionTable[ ] = {
+enum {
 
-    { "help",       CL_OPT_NO_ARGUMENT,        CL_ARG_VAL_HELP },
-    { "version",    CL_OPT_NO_ARGUMENT,        CL_ARG_VAL_VERSION },
-    { "verbose",    CL_OPT_NO_ARGUMENT,        CL_ARG_VAL_VERBOSE },
-    { "configfile", CL_OPT_REQUIRED_ARGUMENT,  CL_ARG_VAL_CONFIG_FILE },
-    { "logfile",    CL_OPT_REQUIRED_ARGUMENT,  CL_ARG_VAL_LOG_FILE },
-    { 0,            CL_OPT_NO_ARGUMENT,        0 }
+    CL_ARG_VAL_HELP = 1,
+    CL_ARG_VAL_VERSION,
+    CL_ARG_VAL_VERBOSE,
+    CL_ARG_VAL_LOG_FILE,
+    CL_ARG_VAL_OBJECT_FILE,
+    CL_ARG_VAL_ASM_FILE
 };
 
-} // namespace
+enum {
+
+    CL_OPT_NO_ARGUMENT,
+    CL_OPT_REQUIRED_ARGUMENT
+};
+
+struct CmdLineOptions {
+
+    const char *name;
+    int         argOpt;
+    int         val;
+};
+
+const CmdLineOptions optionTable[ ] = {
+
+    { "help",       CL_OPT_NO_ARGUMENT,       CL_ARG_VAL_HELP },
+    { "version",    CL_OPT_NO_ARGUMENT,       CL_ARG_VAL_VERSION },
+    { "verbose",    CL_OPT_NO_ARGUMENT,       CL_ARG_VAL_VERBOSE },
+    { "logfile",    CL_OPT_REQUIRED_ARGUMENT, CL_ARG_VAL_LOG_FILE },
+    { "objectfile", CL_OPT_REQUIRED_ARGUMENT, CL_ARG_VAL_OBJECT_FILE },
+    { "asmfile",    CL_OPT_REQUIRED_ARGUMENT, CL_ARG_VAL_ASM_FILE },
+
+    { nullptr,      CL_OPT_NO_ARGUMENT,       0 }
+};
 
 //----------------------------------------------------------------------------------------
-// "parseCmdLineOptions" function to parse long command line options. This routine 
-// is called repeatedly to parse all command line options. It returns the value field
-// of the matched option or -1 if no more options are found. The optArg variable is set
-// to the argument string if an argument is expected.   
+//
+// Copy string into destination buffer.
 //
 //----------------------------------------------------------------------------------------
-int parseCmdLineOptions( int    argc, 
-                         char   *argv[ ],
-                         const  CmdLineOptions *optTable,
-                         char   **optArg ) {
+bool copyFileName( char *dest, const char *src ) {
 
-    if ( optIndex >= argc ) return ( -1 );
+    if ( src == nullptr || strlen( src ) >= MAX_FILE_PATH_SIZE ) {
 
-    const char *arg = argv[ optIndex ];
-
-    if ( strncmp(arg, "--", 2) != 0 ) {
-
-        optIndex++;
-        return 0;
+        fprintf( stderr, "Invalid or excessively long file name\n" );
+        return( false );
     }
 
-    const char *name    = arg + 2;
-    const char *eq      = strchr(name, '=');
-    size_t nameLen      = (( eq ) ? ( static_cast<size_t>( eq - name )) : ( strlen( name )));
-
-    for ( int i = 0; ( optTable && optTable[i].name ); i++ ) {
-
-        if (( strncmp( name, optTable[i].name, nameLen ) == 0 ) &&
-             ( strlen(optTable[i].name) == nameLen )) {
-
-            if ( optTable[i].argOpt == CL_OPT_REQUIRED_ARGUMENT) {
-                
-                if ( eq ) {
-
-                    *optArg = const_cast<char *>( eq + 1 );
-                }
-                else if ( optIndex + 1 < argc ) {
-
-                    *optArg = argv[ ++optIndex ];
-                }
-                else {
-                    
-                    fprintf( stderr, "Option '--%s' requires an argument\n", 
-                            optTable[ i ].name);
-                    return ( -1 );
-                }
-            } 
-            else if ( optTable[ i ].argOpt == CL_OPT_OPTIONAL_ARGUMENT ) {
-                
-                *optArg = (( eq ) ? (const_cast<char *>( eq + 1 )) : ( NULL ));
-            
-            } else *optArg = NULL;
-    
-            optIndex++;
-            return optTable[ i ].val;
-        }
-    }
-
-    fprintf( stderr, "Unknown option '%s'\n", arg ) ;
-    optIndex++;
-    return '?';
+    strcpy( dest, src );
+    return( true );
 }
 
 //----------------------------------------------------------------------------------------
-// "processCmdLineOptions" function to process all command line options. We call the
-// parser in a loop to get all options one by one. The help option is special in 
-// that it will list the program call help and then exit.
+// Print compiler version.
 //
 //----------------------------------------------------------------------------------------
-void processCmdLineOptions( int argc, char *argv[ ] ) {
+void printVersion( ) {
 
-    char *optArg = NULL;
-    int   optVal = 0;
+    printf( "Twin64 Compiler Version %s, PatchLevel %d\n",
+            COMPILER_VERSION, COMPILER_PATCH_LEVEL );
+}
 
-    while (( optVal = parseCmdLineOptions( argc, 
-                                           argv, 
-                                           optionTable, 
-                                           &optArg )) != -1 ) {
+//----------------------------------------------------------------------------------------
+// Print command line help.
+//
+//----------------------------------------------------------------------------------------
+void printHelp( ) {
 
-        switch ( optVal ) {
+    printVersion( );
 
-            case CL_ARG_VAL_HELP:  {
+    printf( "\nUsage: T64SPL [options] source-file\n\n" );
 
-                printf( "Twin64 Compiler Version %s, PatchLevel %d\n\n", 
-                        COMPILER_VERSION, COMPILER_PATCH_LEVEL );
+    printf( "Options:\n" );
+    printf( "  --help                 Display this help message\n" );
+    printf( "  --version              Display program version\n" );
+    printf( "  --verbose              Enable verbose output\n" );
+    printf( "  --logfile=<file>       Specify log file\n" );
+    printf( "  --objectfile=<file>    Specify object file\n" );
+    printf( "  --asmfile=<file>       Specify assembler output file\n" );
+}
 
-                printf( "Usage: T64SPL [options]\n\n" );
+//----------------------------------------------------------------------------------------
+// Find command line option.
+//
+//----------------------------------------------------------------------------------------
+const CmdLineOptions *findOption( const char *name, size_t nameLen ) {
 
-                printf( "Options:\n" );
-                printf( "  --help               : display this help message\n" );
-                printf( "  --version            : display program version\n" );
-                printf( "  --verbose            : enable verbose output\n" );
-                printf( "  --configfile=<file>  : specify configuration file\n" );
-                printf( "  --logfile=<file>     : specify log file\n" );
-                exit( 0 );
-            
-            } break;
+    for ( int i = 0; optionTable[ i ].name != nullptr; i++ ) {
 
-            case CL_ARG_VAL_VERSION: {
+        if ( strlen( optionTable[ i ].name ) == nameLen &&
+             strncmp( optionTable[ i ].name, name, nameLen ) == 0 ) {
 
-                printf( "Twin64 Compiler Version %s, PatchLevel %d\n\n", 
-                        COMPILER_VERSION, COMPILER_PATCH_LEVEL );
-                exit( 0 );
-
-            } break;
-
-            case CL_ARG_VAL_VERBOSE: {
-
-                verboseFlag = true;
-        
-            } break;
-
-            case CL_ARG_VAL_CONFIG_FILE: {
-
-                if ( optArg ) {
-
-                    strncpy( configFileName, optArg, MAX_FILE_PATH_SIZE - 1 );
-                    configFileName[ MAX_FILE_PATH_SIZE - 1 ] = '\0';
-                } 
-                else {
-                
-                    printf( "Error: --configfile requires a filename\n" );
-                    exit( 1 );
-                }
-
-            } break; 
-
-            case CL_ARG_VAL_LOG_FILE: {
-
-                if ( optArg ) {
-        
-                    strncpy( logFileName, optArg, MAX_FILE_PATH_SIZE - 1 );
-                             logFileName[ MAX_FILE_PATH_SIZE - 1 ] = '\0';
-                }
-                else {
-        
-                    printf( "Error: --logfile requires a filename\n" );
-                    exit( 1 );
-                }
-
-            } break; 
-
-            default: {
-
-                printf( "Invalid command parameter option, use help\n" );
-                exit( 1 );
-            };
+            return( &optionTable[ i ] );
         }
     }
+
+    return( nullptr );
+}
+
+}; // namespace
+
+
+//----------------------------------------------------------------------------------------
+// Process command line options.
+//
+//----------------------------------------------------------------------------------------
+CmdLineResult processCmdLineOptions( int argc, char *argv[ ] ) {
+
+    bool optionsEnabled = true;
+
+    // Reset configuration.
+
+    sourceFileName[ 0 ] = '\0';
+    logFileName[ 0 ]    = '\0';
+    objectFileName[ 0 ] = '\0';
+    asmFileName[ 0 ]    = '\0';
+
+    verboseFlag = false;
+
+    for ( int i = 1; i < argc; i++ ) {
+
+        const char *arg = argv[ i ];
+
+        if ( optionsEnabled && strcmp( arg, "--" ) == 0 ) {
+
+            optionsEnabled = false;
+            continue;
+        }
+
+        if ( optionsEnabled && strncmp( arg, "--", 2 ) == 0 ) {
+
+            const char *name = arg + 2;
+            const char *eq   = strchr( name, '=' );
+
+            size_t nameLen = eq ? static_cast<size_t>( eq - name )
+                                : strlen( name );
+
+            const CmdLineOptions *opt = findOption( name, nameLen );
+
+            if ( opt == nullptr ) {
+
+                fprintf( stderr, "Unknown option '%s'\n", arg );
+                return( CMD_LINE_ERROR );
+            }
+
+            const char *optArg = nullptr;
+
+            if ( opt -> argOpt == CL_OPT_REQUIRED_ARGUMENT ) {
+
+                if ( eq != nullptr ) {
+
+                    optArg = eq + 1;
+                }
+                else if ( i + 1 < argc ) {
+
+                    optArg = argv[ ++i ];
+                }
+                else {
+
+                    fprintf( stderr, "Option '--%s' requires an argument\n",
+                             opt -> name );
+                    return( CMD_LINE_ERROR );
+                }
+
+                if ( optArg[ 0 ] == '\0' ) {
+
+                    fprintf( stderr, "Option '--%s' requires an argument\n",
+                             opt -> name );
+                    return( CMD_LINE_ERROR );
+                }
+            }
+            else if ( eq != nullptr ) {
+
+                fprintf( stderr, "Option '--%s' does not accept an argument\n",
+                         opt -> name );
+                return( CMD_LINE_ERROR );
+            }
+
+            switch ( opt -> val ) {
+
+                case CL_ARG_VAL_HELP: {
+
+                    printHelp( );
+                    return( CMD_LINE_HELP );
+
+                } break;
+
+                case CL_ARG_VAL_VERSION: {
+
+                    printVersion( );
+                    return( CMD_LINE_VERSION );
+
+                } break;
+
+                case CL_ARG_VAL_VERBOSE: {
+
+                    verboseFlag = true;
+
+                } break;
+
+                case CL_ARG_VAL_LOG_FILE: {
+
+                    if ( !copyFileName( logFileName, optArg )) return( CMD_LINE_ERROR );
+
+                } break;
+
+                case CL_ARG_VAL_OBJECT_FILE: {
+
+                    if ( !copyFileName( objectFileName, optArg )) return( CMD_LINE_ERROR );
+
+                } break;
+
+                case CL_ARG_VAL_ASM_FILE: {
+
+                    if ( !copyFileName( asmFileName, optArg )) return( CMD_LINE_ERROR );
+
+                } break;
+            }
+
+            continue;
+        }
+
+        if ( sourceFileName[ 0 ] != '\0' ) {
+
+            fprintf( stderr, "Only one source file is allowed\n" );
+            return( CMD_LINE_ERROR );
+        }
+
+        if ( !copyFileName( sourceFileName, arg )) return( CMD_LINE_ERROR );
+    }
+
+    if ( sourceFileName[ 0 ] == '\0' ) {
+
+        fprintf( stderr, "No source file specified\n\n" );
+        printHelp( );
+        return( CMD_LINE_ERROR );
+    }
+
+    return( CMD_LINE_OK );
+}
+
+//----------------------------------------------------------------------------------------
+// Accessors.
+//
+//----------------------------------------------------------------------------------------
+const char *getSourceFile( ) {
+
+    return( sourceFileName );
+}
+
+const char *getLogFile( ) {
+
+    return( logFileName );
+}
+
+const char *getObjectFile( ) {
+
+    return( objectFileName );
+}
+
+const char *getAsmFile( ) {
+
+    return( asmFileName );
+}
+
+bool getVerboseFlag( ) {
+
+    return( verboseFlag );
 }

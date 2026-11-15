@@ -28,6 +28,9 @@
 //
 //----------------------------------------------------------------------------------------
 int main( int argc, char* argv[ ] ) {
+
+    CmdLineResult rStat = processCmdLineOptions( argc, argv );
+    if ( rStat != CMD_LINE_OK ) return( 1 );
    
     return( 0 );
 }

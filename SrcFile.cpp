@@ -29,64 +29,122 @@
 //----------------------------------------------------------------------------------------
 namespace {
 
-//----------------------------------------------------------------------------------------
-//
-//
-//----------------------------------------------------------------------------------------
-FILE            *srcFile                                = nullptr;
-char            srcFileName[ MAX_FILE_PATH_SIZE ]       = { 0 };
-unsigned        srcFileLineIndex                        = 0;
-unsigned        srcFileCharIndex                        = 0;
+FILE            *srcFile                          = nullptr;
+char            srcFilePath[ MAX_FILE_PATH_SIZE ] = { 0 };
+char            srcFileName[ MAX_FILE_PATH_SIZE ] = { 0 };
 
-char            srcFileLine[ MAX_INPUT ]                = { 0 };
-char            currentChar                             = ' ';
+char            srcFileLine[ MAX_INPUT ]          = { 0 };
+
+unsigned        srcFileLineIndex                  = 1;
+unsigned        srcFileCharIndex                  = 0;
+
+unsigned        srcFileLineLength                 = 0;
+unsigned        srcFileLinePos                    = 0;
 
 }; // namespace
 
-
+//----------------------------------------------------------------------------------------
+// Open source file.
+//
+//----------------------------------------------------------------------------------------
 void openSrcFile( const char *filePath ) {
 
     srcFile = fopen( filePath, "r" );
-    
+
     if ( srcFile == nullptr ) {
-        
-        // ??? what to report ...   
+
+        fprintf( stderr, "Cannot open source file: %s\n", filePath );
+        return;
     }
+
+    const char *sep = strrchr( filePath, '/' );
+    const char *sep2 = strrchr( filePath, '\\' );
+
+    if ( sep == nullptr || ( sep2 != nullptr && sep2 > sep )) sep = sep2;
+
+    if ( sep != nullptr ) {
+
+        size_t len = sep - filePath + 1;
+
+        snprintf( srcFilePath, sizeof( srcFilePath ), "%.*s",
+                  static_cast<int>( len ), filePath );
+
+        snprintf( srcFileName, sizeof( srcFileName ), "%s", sep + 1 );
+    }
+    else {
+
+        srcFilePath[ 0 ] = '\0';
+        snprintf( srcFileName, sizeof( srcFileName ), "%s", filePath );
+    }
+
+    srcFileLineIndex  = 1;
+    srcFileCharIndex  = 0;
+
+    srcFileLineLength = 0;
+    srcFileLinePos    = 0;
+
+    srcFileLine[ 0 ] = '\0';
 }
 
-
+//----------------------------------------------------------------------------------------
+// Close source file.
+//
+//----------------------------------------------------------------------------------------
 void closeSrcFile( ) {
 
     if ( srcFile != nullptr ) {
-        
+
         fclose( srcFile );
         srcFile = nullptr;
     }
 }
 
-
+//----------------------------------------------------------------------------------------
+// "srcFileGetChar" returns the next character from the source file.
+//
+//----------------------------------------------------------------------------------------
 char srcFileGetChar( ) {
 
     if ( srcFile == nullptr ) return( 0 );
 
-        
-    int ch = fgetc( srcFile );
-    
-    if ( ch == EOF ) {
+    if ( srcFileLinePos >= srcFileLineLength ) {
 
-        currentChar = 0;
+        if ( fgets( srcFileLine, sizeof( srcFileLine ), srcFile ) == nullptr ) {
+
+            return( 0 );
+        }
+
+        srcFileLineLength = strlen( srcFileLine );
+        srcFileLinePos    = 0;
     }
-    else if ( ch == '\n' ) {
-        
+
+    char ch = srcFileLine[ srcFileLinePos++ ];
+
+    if ( ch == '\n' ) {
+
         srcFileLineIndex ++;
         srcFileCharIndex = 0;
-        currentChar      = ' ';
+
+        return( '\n' );
     }
-    else {
-        
-        srcFileCharIndex ++;
-        currentChar = static_cast<char>( ch );
-    }
+
+    srcFileCharIndex ++;
+    return( ch );
+}
+
+//----------------------------------------------------------------------------------------
+//
+// Accessors.
+//
+//----------------------------------------------------------------------------------------
+const char *srcFileGetPath( ) {
+
+    return( srcFilePath );
+}
+
+const char *srcFileGetName( ) {
+
+    return( srcFileName );
 }
 
 unsigned srcFileGetLineNum( ) {
@@ -94,7 +152,7 @@ unsigned srcFileGetLineNum( ) {
     return( srcFileLineIndex );
 }
 
-unsigned  srcFileGetCharIndex( ) {
+unsigned srcFileGetCharIndex( ) {
 
     return( srcFileCharIndex );
 }

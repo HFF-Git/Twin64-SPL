@@ -78,36 +78,17 @@ const int MAX_TOKEN_NAME     = 32;
 const int MAX_FILE_PATH_SIZE = 256;
 const int MAX_TOKEN_STR_SIZE = 256;
 
-
-// ??? options and flags...
-
 //----------------------------------------------------------------------------------------
-// Command line option argument types and structure. This is the "argc", "argv"
-// parser used to parse long options (e.g. --option=value).
+//
+// Command line processing.
 //
 //----------------------------------------------------------------------------------------
-enum SimCmdLineArgOptions : uint32_t {
+enum CmdLineResult {
 
-    CL_OPT_NO_ARGUMENT,         
-    CL_OPT_REQUIRED_ARGUMENT,   
-    CL_OPT_OPTIONAL_ARGUMENT
-};
-
-enum SimCmdLineArgVal : uint32_t {
-
-    CL_ARG_VAL_NIL,             
-    CL_ARG_VAL_HELP,             
-    CL_ARG_VAL_VERSION,
-    CL_ARG_VAL_VERBOSE,        
-    CL_ARG_VAL_CONFIG_FILE,      
-    CL_ARG_VAL_LOG_FILE
-};
-
-struct CmdLineOptions {
-
-    const char              *name;
-    SimCmdLineArgOptions    argOpt;   
-    int                     val;
+    CMD_LINE_OK,
+    CMD_LINE_HELP,
+    CMD_LINE_VERSION,
+    CMD_LINE_ERROR
 };
 
 //----------------------------------------------------------------------------------------
@@ -228,6 +209,34 @@ enum CompileErrors {
 };
 
 
+//----------------------------------------------------------------------------------------
+// Annotations.
+//
+//----------------------------------------------------------------------------------------
+enum AnnotationType {
+
+    ANN_ERROR,
+    ANN_WARNING,
+    ANN_NOTE,
+    ANN_INFO
+};
+
+struct Annotation {
+
+    Annotation      *next;
+    AnnotationType  type;
+
+    char           fileName[ MAX_FILE_PATH_SIZE ];
+    unsigned       srcLineNum;
+    unsigned       srcLineCol;
+    unsigned       length;
+
+    unsigned       errorId;
+
+    
+
+    //  char           message[ MAX_ERROR_MESSAGE_SIZE ];
+};
 
 //----------------------------------------------------------------------------------------
 // Forwards.
@@ -348,23 +357,89 @@ struct ItemDesc {
 };
 
 
-
-
 //----------------------------------------------------------------------------------------
 // Function prototypes. We declare them here so every file can use them. Local functions
 // are kept in the file anonymous name space.
 //
 //----------------------------------------------------------------------------------------
 
+//----------------------------------------------------------------------------------------
+// Command line processing.
+//
+//----------------------------------------------------------------------------------------
+CmdLineResult processCmdLineOptions( int argc, char *argv[ ] );
+
+const char      *getSourceFile( );
+const char      *getLogFile( );
+const char      *getObjectFile( );
+const char      *getAsmFile( );
+bool            getVerboseFlag( );
+
+
+//----------------------------------------------------------------------------------------
+//
+// Memory arenas.
+//
+//----------------------------------------------------------------------------------------
+
+struct Arena;
+
+Arena *arenaCreate( size_t blockSize );
+void   arenaDestroy( Arena *arena );
+void   arenaReset( Arena *arena );
+
+void  *arenaAlloc( Arena *arena, size_t size );
+void  *arenaAllocZero( Arena *arena, size_t size );
+
+//----------------------------------------------------------------------------------------
+// Annotation management.
+//
+//----------------------------------------------------------------------------------------
+void annotationsInit( );
+void annotationsDone( );
+
+void compErr( unsigned errorId, 
+              unsigned srcLineNum,
+              unsigned srcLineColumn,
+              unsigned length, 
+              const char *message );
+
+void compWarn( unsigned errorId, 
+               unsigned srcLineNum,
+               unsigned srcLineColumn,
+               unsigned length, 
+               const char *message );    
+
+void compNote( unsigned errorId, 
+               unsigned srcLineNum,
+               unsigned srcLineColumn,
+               unsigned length, 
+               const char *message );
+
+void compInfo( unsigned errorId, 
+               unsigned srcLineNum,
+               unsigned srcLineColumn,
+               unsigned length, 
+               const char *message );
+
+unsigned       annotationsGetCount( );
+unsigned       annotationsGetErrorCount( );
+unsigned       annotationsGetWarningCount( );
+unsigned       annotationsGetNoteCount( );
+unsigned       annotationsGetInfoCount( );
+
+const Annotation *annotationsGetFirst( );
 
 //----------------------------------------------------------------------------------------
 //
 //
 //----------------------------------------------------------------------------------------
-
-
 void            openSrcFile( const char *filePath );
 void            closeSrcFile( );
+
+const char      *srcFileGetPath( );
+const char      *srcFileGetName( );
+
 char            srcFileGetChar( );
 unsigned        srcFileGetLineNum( );
 unsigned        srcFileGetCharIndex( );
