@@ -105,6 +105,7 @@ enum TokenId {
     TOK_IDENT,
     TOK_NUM,
     TOK_STR,
+    TOK_INT,
 
     TOK_COMMA,
     TOK_COLON,
@@ -114,6 +115,7 @@ enum TokenId {
     TOK_LBRACK,
     TOK_RBRACK,
     TOK_EQUAL,
+    TOK_ASSIGN,
     TOK_EQ,
     TOK_NE,
     TOK_LNOT,
@@ -132,14 +134,40 @@ enum TokenId {
     TOK_OR,
     TOK_XOR,
     TOK_NEG,
+    TOK_NOT,
 
+     
     TOK_IF, 
+    TOK_THEN,
     TOK_ELSE,
+    TOK_ELSEIF,
+    TOK_WHILE,
+    TOK_DO,
+    TOK_REPEAT,
+    TOK_UNTIL,
+    TOK_CASE,
+    TOK_WHEN,
+    TOK_OF,
+    TOK_WITH,
+    TOK_CONTINUE,
+    TOK_BREAK,
+    TOK_RETURN,
+    TOK_BEGIN,
+    TOK_END,
+    TOK_POINTER,
+    TOK_TO,
+    TOK_ARRAY,
+    TOK_RECORD,
+    TOK_STRING,
+    TOK_CONST,
+    TOK_TYPE,
+    TOK_VAR,
+    TOK_SEMIKOLON,
+    TOK_PROCEDURE,
+    TOK_MODULE,
+    TOK_OPTION,
+    TOK_IMPORT,
     
-
-
-
-
 };
 
 
@@ -193,17 +221,42 @@ enum ItemDescType {
 enum CompileErrors {
 
     NO_ERR                          = 0,
-    ERR_STRING_TOO_LONG             = 1,
-    ERR_INVALID_UNICODE_ESCAPE      = 2,
-    ERR_INVALID_NUM                 = 3,
-    ERR_INVALID_HEX_ESCAPE          = 4,
-    ERR_EXPECTED_CLOSING_QUOTE      = 5,
-    ERR_INVALID_CHAR_IN_IDENT       = 6,
-    ERR_EXPECTED_COMMA              = 7,
-    ERR_EXPECTED_COLON              = 8,
-    ERR_EXPECTED_LPAREN             = 9,
-    ERR_EXPECTED_RPAREN             = 10,
-    ERR_FILE_NOT_FOUND              = 11,
+    ERR_FILE_NOT_FOUND              = 1,
+    ERR_STRING_TOO_LONG             = 2,
+    ERR_INVALID_UNICODE_ESCAPE      = 3,
+    ERR_INVALID_NUM                 = 4,
+    ERR_INVALID_HEX_ESCAPE          = 5,
+    ERR_EXPECTED_CLOSING_QUOTE      = 6,
+    ERR_INVALID_CHAR_IN_IDENT       = 7,
+
+
+
+    ERR_EXPECTED_COMMA_SYM          = 100,
+    ERR_EXPECTED_COLON_SYM          = 101,
+    ERR_EXPECTED_LPAREN_SYM         = 102,
+    ERR_EXPECTED_RPAREN_SYM         = 103,
+    ERR_EXPECTED_IDENT_SYM          = 104,
+    ERR_EXPECTED_LBRACK_SYM         = 106,
+    ERR_EXPECTED_RBRACK_SYM         = 107,
+    ERR_EXPECTED_ASSIGN_SYM         = 108,  
+    ERR_EXPECTED_THEN_SYM           = 109,
+    ERR_EXPECTED_OF_SYM             = 110,
+    ERR_EXPECTED_END_SYM            = 111,
+    ERR_EXPECTED_WHEN_SYM           = 112,
+    ERR_EXPECTED_DO_SYM             = 113,
+    ERR_EXPECTED_UNTIL_SYM          = 114,
+    ERR_EXPECTED_TO_SYM             = 115,
+    ERR_EXPECTED_EQ_SYM             = 116,
+    ERR_EXPECTED_BEGIN_SYM          = 117,
+    ERR_EXPECTED_SEMIKOLON_SYM      = 118,
+
+
+
+
+
+
+
+    
 
 
 };
@@ -338,8 +391,9 @@ struct ConstObjDesc : public ObjDesc {
 //----------------------------------------------------------------------------------------
 struct ScopeDesc {
 
-    ScopeDescType  typ;
-    ObjDesc        *objTree;
+    ScopeDescType   typ;
+    ObjDesc         *objFirst;
+    ObjDesc         * objLast;
 
     // ??? attributes ...
 
@@ -358,8 +412,8 @@ struct ItemDesc {
 
 
 //----------------------------------------------------------------------------------------
-// Function prototypes. We declare them here so every file can use them. Local functions
-// are kept in the file anonymous name space.
+// Function prototypes. We declare them here so every file can use them. Local 
+// functions are kept in the file anonymous name space of each file.
 //
 //----------------------------------------------------------------------------------------
 
@@ -367,7 +421,7 @@ struct ItemDesc {
 // Command line processing.
 //
 //----------------------------------------------------------------------------------------
-CmdLineResult processCmdLineOptions( int argc, char *argv[ ] );
+CmdLineResult   processCmdLineOptions( int argc, char *argv[ ] );
 
 const char      *getSourceFile( );
 const char      *getLogFile( );
@@ -375,28 +429,21 @@ const char      *getObjectFile( );
 const char      *getAsmFile( );
 bool            getVerboseFlag( );
 
-
 //----------------------------------------------------------------------------------------
-//
 // Memory arenas.
 //
 //----------------------------------------------------------------------------------------
-
-struct Arena;
-
-Arena *arenaCreate( size_t blockSize );
-void   arenaDestroy( Arena *arena );
-void   arenaReset( Arena *arena );
-
-void  *arenaAlloc( Arena *arena, size_t size );
-void  *arenaAllocZero( Arena *arena, size_t size );
+struct Arena    *arenaCreate( size_t blockSize );
+void            arenaDestroy( struct Arena *arena );
+void            arenaReset( struct Arena *arena );
+void            *arenaAlloc( struct Arena *arena, size_t size, uint8_t initByte = 0 );
 
 //----------------------------------------------------------------------------------------
 // Annotation management.
 //
 //----------------------------------------------------------------------------------------
-void annotationsInit( );
-void annotationsDone( );
+void            annotationsInit( );
+void            annotationsDone( );
 
 void compErr( unsigned errorId, 
               unsigned srcLineNum,
@@ -472,7 +519,5 @@ void            addToScope( ScopeDesc *scopeDesc, ObjDesc *objDesc );
 //
 //
 //----------------------------------------------------------------------------------------
-void            acceptComma( );
-void            acceptColon( );
-void            acceptLparen( );
-void            acceptRparen( );
+void            initParser( );
+void            parse( );

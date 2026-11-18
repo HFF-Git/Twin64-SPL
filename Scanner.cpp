@@ -184,10 +184,29 @@ void buildKeyWordTable( ) {
     int pos = 0;
     enterKeyWord( "IF", TOK_IF, &pos );
 
+    keyTabIndex[ 2 ] = pos;
 
-    keyTabIndex[ 2 ] = pos; // ??? where does really point to ?
-
+    enterKeyWord( "THEN", TOK_THEN, &pos );
     enterKeyWord( "ELSE", TOK_ELSE, &pos );
+    enterKeyWord( "WHEN", TOK_WHEN, &pos );
+
+    keyTabIndex[ 3 ] = pos;
+
+    enterKeyWord( "WHILE", TOK_WHILE, &pos );
+    enterKeyWord( "UNTIL", TOK_WHEN, &pos );
+
+    keyTabIndex[ 4 ] = 0;
+
+    enterKeyWord( "ELSEIF", TOK_ELSEIF, &pos );
+    enterKeyWord( "MODULE", TOK_MODULE, &pos );
+    enterKeyWord( "OPTION", TOK_OPTION, &pos );
+    enterKeyWord( "IMPORT", TOK_IMPORT, &pos );
+
+    keyTabIndex[ 5 ] = 0;
+
+
+
+
 
 
 }

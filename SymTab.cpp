@@ -29,7 +29,69 @@
 //----------------------------------------------------------------------------------------
 namespace {
 
+    ObjDesc *comEnvScope;  // "COMP_ENV"
+
+    TypeDesc *booleanType( );
+    TypeDesc *byteType( );
+    TypeDesc *shortType( );
+    TypeDesc *wordType( );
+    TypeDesc *intType( );
+
+
 };
+
+#if 0
+    #-------------------------------------------------------------------------------------
+    # "enterObj" will add an object to the current scope. We check for duplicates
+    # and redefinition of predefined objects.
+    # 
+    #-------------------------------------------------------------------------------------
+    def enterObj( self, scope : ObjDesc, obj : ObjDesc ):
+
+        if ( compEnvScope.lookupLocal( obj.name ) ):
+            self.annotate( Msg.ERR_REDEFINE_DEFINED )
+
+        elif ( scope.lookupLocal( obj.name )):
+            self.annotate( Msg.ERR_DUPLICATE_IDENT )
+        
+        else:
+            scope.enter( obj )
+#endif
+
+
+ScopeDesc *makeScopeDesc( ) {
+
+}
+
+ObjDesc *makeObjDesc( ) {
+
+}
+
+TypeDesc *makeTypeDesc( ) {
+
+}
+
+char *makeStr( const char *inputStr ) {
+
+
+}
+
+void freeScopeDesc( ScopeDesc *scopeDesc ) {
+
+}
+
+void freeObjDesc( ObjDesc *objDesc ) {
+
+}
+
+void freeTypeDesc( TypeDesc *typeDesc ) {
+
+}
+
+void addToScope( ScopeDesc *scopeDesc, ObjDesc *objDesc ) {
+
+}
+
 
 
 

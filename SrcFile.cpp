@@ -38,7 +38,7 @@ char            srcFileLine[ MAX_INPUT ]          = { 0 };
 unsigned        srcFileLineIndex                  = 1;
 unsigned        srcFileCharIndex                  = 0;
 
-unsigned        srcFileLineLength                 = 0;
+size_t          srcFileLineLength                 = 0;
 unsigned        srcFileLinePos                    = 0;
 
 }; // namespace
@@ -64,7 +64,7 @@ void openSrcFile( const char *filePath ) {
 
     if ( sep != nullptr ) {
 
-        size_t len = sep - filePath + 1;
+        size_t len = ( sep - filePath ) + 1;
 
         snprintf( srcFilePath, sizeof( srcFilePath ), "%.*s",
                   static_cast<int>( len ), filePath );

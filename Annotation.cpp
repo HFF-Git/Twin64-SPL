@@ -53,7 +53,7 @@ void addAnnotation( AnnotationType type,
 
     Annotation *ann = static_cast<Annotation *>(
 
-        arenaAllocZero( annotationArena, sizeof( Annotation )));
+        arenaAlloc( annotationArena, sizeof( Annotation )));
 
     if ( ann == nullptr ) {
 
